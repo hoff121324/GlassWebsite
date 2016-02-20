@@ -18,6 +18,10 @@ class AddonManager {
 	public static $SORTRATINGASC = 4; //aka bad ratings first I think
 	public static $SORTRATINGDESC = 5;
 
+	//this stuff should probably be moved to a different class
+	//I don't know how often this is going to be called and in what context,
+	// but it looks like an expensive function so things like session_write_close()
+	// should be utilized
 	public static function checkUpstreamRepos() {
 		$channelId[1] = "stable";
 		$channelId[2] = "unstable";
@@ -28,6 +32,8 @@ class AddonManager {
 			$versionInfo = $addon->getVersionInfo();
 			if(isset($versionInfo->upstream)) {
 				$upstream = $versionInfo->upstream;
+
+				//For consistency I like using echo() with parenthesis and sticking with 'ID' instead of 'Id'
 				echo $addon->getId() . "\n";
 				$url = $upstream->url;
 				if(isset($upstream->mod)) {
@@ -145,6 +151,13 @@ class AddonManager {
 		AddonManager::submitUpdate($addonObject, $version, $branchId, realpath($filepath), "Imported from upstream.");
 	}
 
+	//this whole channel/branch system seems like a mess and we really should rethink this
+	//I believe the ideal solution is to keep everything simple and not have branches.
+	//The average end user does not care about different branches and there are a lot of
+	// features that are required for them to not be a complete pain for developers.
+	//However I understand that there is already quite a bit invested in the system.
+	//I think we should move away from the whole channels idea and maybe have something
+	// similar to steam betas if anything, where developers can put out "beta" versions
 	public static function submitUpdate($addon, $version, $branch, $file, $changelog) {
 		if(!is_object($addon)) {
 			$addon = AddonManager::getFromID($addon);
@@ -249,6 +262,8 @@ class AddonManager {
 		$authorArray = [$authorInfo];
 
 		// NOTE boards will be decided by reviewers now, they just seem to confuse and anger people
+		// I think making that change at this point will cause more problems than it solves.
+		// It is better to just have reviewers move boards
 		$res = $database->query("INSERT INTO `addon_addons` (`id`, `board`, `blid`, `name`, `filename`, `description`, `versionInfo`, `authorInfo`, `reviewInfo`, `deleted`, `approved`, `uploadDate`) VALUES " .
 		"(NULL," .
 		"NULL," .
@@ -282,9 +297,13 @@ class AddonManager {
 		return $response;
 	}
 
+	//to do: should have dedicated board move function instead
 	public static function approveAddon($id, $board, $approver) {
 		$database = new DatabaseManager();
+
+		//to do: check for mysql error and handle it
 		$database->query("UPDATE `addon_addons` SET `approved`='1', `board`='" . $database->sanitize($board) . "' WHERE `id`='" . $database->sanitize($id) . "'");
+		apc_delete('addonObject_' . $id);
 
 		$manager = AddonManager::getFromId($id)->getManagerBLID();
 
@@ -302,16 +321,14 @@ class AddonManager {
 		$params->vars[] = $user;
 		$params->vars[] = $addon;
 		NotificationManager::createNotification($manager, '$2 was approved by $1', $params);
-
-		apc_delete('addonObject_' . $id);
 	}
 
 	public static function getFromID($id, $resource = false) {
 		$addonObject = apc_fetch('addonObject_' . $id, $success);
 
-		if(!is_object($addonObject)) {
-			$success = false;
-		}
+		//if(!is_object($addonObject)) {
+		//	$success = false;
+		//}
 
 		if($success === false) {
 			if($resource !== false) {
@@ -333,9 +350,10 @@ class AddonManager {
 				$resource->close();
 			}
 			//cache result for one hour
-			if(is_object($addonObject)) {
+			//I don't think we want this check because storing 'false' on failure is intentional
+			//if(is_object($addonObject)) {
 				apc_store('addonObject_' . $id, $addonObject, AddonManager::$objectCacheTime);
-			}
+			//}
 		}
 		return $addonObject;
 	}
@@ -582,6 +600,7 @@ class AddonManager {
 		return $ret;
 	}
 
+	//to do: caching
 	public static function getUnapproved() {
 		$ret = array();
 
@@ -668,6 +687,10 @@ class AddonManager {
 			UserManager::verifyTable($database);
 			BoardManager::verifyTable($database);
 
+			//why is the blid foreign key constraint removed?
+			//If you want to be able to set blid to null, you should reconsider.
+			//blid is used to determine which account has control over the addon.
+			//There is no need to set it to null.  Just default it to some admin.
 			if(!$database->query("CREATE TABLE IF NOT EXISTS `addon_addons` (
 				`id` INT NOT NULL AUTO_INCREMENT,
 				`board` INT,
@@ -684,6 +707,10 @@ class AddonManager {
 				`uploadDate` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 				FOREIGN KEY (`board`)
 					REFERENCES addon_boards(`id`)
+					ON UPDATE CASCADE
+					ON DELETE CASCADE,,
+				FOREIGN KEY (`blid`)
+					REFERENCES users(`blid`)
 					ON UPDATE CASCADE
 					ON DELETE CASCADE,
 				PRIMARY KEY (`id`))")) {

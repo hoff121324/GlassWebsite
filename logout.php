@@ -15,5 +15,15 @@
 		}
 		die();
 	}
-	echo("Cross site request forgery attempt blocked.  You have not been logged out.");
+	echo("Cross site request forgery attempt blocked.  Please click below to confirm your Logout.");
 ?>
+<form id="logoutForm" action="/logout.php" method="post">
+	<input type="hidden" name="csrftoken" value="<?php echo($_SESSION['csrftoken']); ?>">
+
+	<?php
+		if(isset($_POST['redirect'])) { ?>
+			<input type="hidden" name="redirect" value="<?php echo(htmlspecialchars($_POST['redirect'])); ?>">
+		<?php
+		} ?>
+	<input type="submit" name="submit" value="Log Out">
+</form>

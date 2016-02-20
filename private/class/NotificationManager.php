@@ -6,6 +6,12 @@ class NotificationManager {
 	private static $objectCacheTime = 3600; //1 hour
 	private static $userCacheTime = 3600;
 
+	//avoid passing user objects instead of just a blid
+	//I think we need to sit down and make sure we think this through completely
+	//I thought we were going to have some sort of news/subscription system
+	//Notification information should not really be plaintext, instead we should have it
+	// so we have some set of parameters that define the message
+	// and then have the actual message text generated when requested
 	public static function createNotification($user, $text, $params) {
 		if(isset($param) && !is_object($param)) {
 			throw new Exception("Object expected form \$param");
@@ -19,6 +25,8 @@ class NotificationManager {
 
 		$database = new DatabaseManager();
 		NotificationManager::verifyTable($database);
+
+		//I hope this is all temporary
 		$resource = $database->query("INSERT INTO `blocklandglass2`.`user_notifications` (`id`, `blid`, `date`, `text`, `params`, `seen`) VALUES " .
 			"(NULL, '" . $database->sanitize($blid) . "', NOW(), '" . $database->sanitize($text) . "', '" . $database->sanitize(json_encode($params)) . "', '0');");
 		apc_delete('userNotifications_' . $blid);
